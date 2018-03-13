@@ -2,9 +2,6 @@
 //COPIED FROM https://github.com/sol-prog/Mandelbrot_set/blob/master/mandel.cpp
 //Refactored for better clarity 
 
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
-
 #include "mandel_plotter.hpp"
 
 #include <tuple>

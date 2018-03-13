@@ -6,6 +6,7 @@
 #include <complex>
 #include <functional>
 #include <stdbool.h>
+#include <vector>
 
 #include "window.hpp"
 
