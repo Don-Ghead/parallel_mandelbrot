@@ -11,7 +11,7 @@ mandel: $(OBJS)
 image_handler.o: image_handler.cpp image_handler.hpp bitmap_image.hpp window.hpp
 	$(CXX) $(CPPFLAGS) -c image_handler.cpp -o image_handler.o
 
-mandel_plotter.o: mandel_plotter.cpp mandel_plotter.hpp window.hpp
+mandel_plotter.o: mandel_plotter.cpp mandel_plotter.hpp
 	$(CXX) $(CPPFLAGS) -c mandel_plotter.cpp -o mandel_plotter.o
 
 main.o: main.cpp
