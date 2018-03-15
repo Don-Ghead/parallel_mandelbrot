@@ -51,18 +51,19 @@ int mandel_plotter::check_value_within_set(Complex c) {
 
 // Loop over each pixel from our image and check if the points associated with this pixel escape to infinity
 void mandel_plotter::get_number_iterations(std::vector<int> &colours) {
-	int k = 0, progress = -1;
+	int colour_index = 0, progress = -1;
 	for (int i = m_screen.get_y_min(); i < m_screen.get_y_max(); ++i) {
 		for (int j = m_screen.get_x_min(); j < m_screen.get_x_max(); ++j) {
 
 			Complex c((double)j, (double)i); //Assign two coordinate positions to complex
 			c = pixel_to_complex(c); //convert to complex domain
 
-			colours[k] = check_value_within_set(c);  //returns the number of iterations of our complex C 
-																	//and assigns it to the appropriate colours index
-			++k;
+			//returns the number of iterations of our complex C 
+			//and assigns it to the appropriate colours index
+			colours[colour_index] = check_value_within_set(c);  
+			++colour_index;
 		}
-		/*
+		/* May Reenable this given particular fractal parameters
 		if (progress < (int)(i*100.0 / m_screen.get_y_max())) {
 			progress = (int)(i*100.0 / m_screen.get_y_max());
 			std::cout << progress << "%\n";

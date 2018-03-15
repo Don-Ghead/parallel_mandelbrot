@@ -6,6 +6,15 @@
 using namespace std;
 // Use an alias to simplify the use of complex type
 
+bool get_userdefined_params(int &width, int &height, int &max_iter)
+{
+	cout << "Define image width (x): ";
+	cin >> width;
+	cout << endl << "Define image height(y): ";
+	cin >> height;
+	cout << endl << "Define the max number of iterations: ";
+	cin >> max_iter;
+}
 
 int main(void)
 {
@@ -23,12 +32,7 @@ int main(void)
 	//Define the image parameters
 	window<double> fractal(-2.2, 1.2, -1.7, 1.7);
 	int width, height, max_iter;
-	cout << "Define image width (x): ";
-	cin >> width;
-	cout << endl << "Define image height(y): ";
-	cin >> height;
-	cout << endl << "Define the max number of iterations: ";
-	cin >> max_iter;
+	get_userdefined_params(width, height, max_iter);
 	window<int> screen(0, width, 0, height);
 	
 	//May re-enable the progress bar for larger fractal computations
