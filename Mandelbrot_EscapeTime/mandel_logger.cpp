@@ -1,9 +1,18 @@
+/*
+	ADD DESCRIPTION
+*/
+
+#include <fstream>
+#include <iostream>
+
 #include "mandel_logger.hpp"
 
 #if defined(WIN32) || defined(_WIN32)
 #include <Windows.h>
 #include <stdio.h>
 #endif
+
+using namespace std;
 
 const vector<string> sysinfo_tokens
 {
@@ -13,19 +22,12 @@ const vector<string> sysinfo_tokens
 
 //Don't need to check the log level as it is enumerated and must be on of the specified values
 mandel_logger::mandel_logger(Log_level log_lvl, string altlog_filename)
-	: m_log_level(Log_level::NONE), m_permalog_filename(perma_log_filename)
+	: m_log_level(log_lvl), m_permalog_filename(perma_log_filepath), m_using_altlog(false)
 {
 	if (!altlog_filename.empty())
 	{
 		m_alternatelog_filename = altlog_filename;
-		m_log_level = log_lvl;
 		m_using_altlog = true;
-	}
-	else
-	{
-		//If the string passed in is empty just assign the perma log name to it instead 
-		//as the perma_log persists between all runs 
-		m_permalog_filename = perma_log_filename;
 	}
 
 #if defined(__unix__)
@@ -33,10 +35,111 @@ mandel_logger::mandel_logger(Log_level log_lvl, string altlog_filename)
 #elif defined(WIN32) || defined(_WIN32)
 	m_plat_is_unix = false;
 #endif
+
 }
 
 mandel_logger::~mandel_logger()
 {
+}
+
+bool mandel_logger::add_logfile_detail(string log_detail)
+{
+	if (!log_detail.empty())
+	{
+		m_logfile_details.push_back(log_detail);
+		return true;
+	}
+	else
+	{
+		false;
+	}
+}
+
+bool mandel_logger::write_logdetails_to_path(string logpath)
+{
+	bool success = false;
+	if (!logpath.empty())
+	{
+		//Open output stream in output/append mode
+		ofstream logfile(logpath, ios::out | ios::app);
+
+		if (logfile.is_open())
+		{
+			cout << "Writing details to " << logpath << endl;
+			//Divider includes newlines on either side to ensure entries are divided 
+			logfile << logfile_entry_divider;
+
+			for (int i = 0; i < m_logfile_details.size(); i++)
+			{
+				logfile << m_logfile_details[i] << ", ";
+			}
+			logfile << plat_newline;
+			logfile.close();
+			success = true;
+		}
+		else
+		{
+			cout << "Unable to open path to write logdetails";
+		}
+		
+	}
+	else
+	{
+		if (!m_using_altlog)
+		{
+			//Open output stream in output/append mode
+			ofstream logfile(perma_log_filepath, ios::out | ios::app);
+
+			if (logfile.is_open())
+			{
+				cout << "Writing details to permalog only" << endl;
+				//Divider includes newlines on either side to ensure entries are divided 
+				logfile << logfile_entry_divider;
+
+				for (int i = 0; i < m_logfile_details.size(); i++)
+				{
+					logfile << m_logfile_details[i] << ", ";
+				}
+				logfile << plat_newline;
+				logfile.close();
+				success = true;
+			}
+			else
+			{
+				cout << "Unable to open path to write logdetails";
+			}
+		}
+		else
+		{
+			//Open output stream in output/append mode
+			ofstream logfile(perma_log_filepath, ios::out | ios::app);
+			ofstream alt_logfile(m_alternatelog_filename, ios::out | ios::app);
+
+			if (logfile.is_open() && alt_logfile.is_open())
+			{
+				cout << "Writing details to alt & perma logs" << endl;
+				//Divider includes newlines on either side to ensure entries are divided 
+				logfile << logfile_entry_divider;
+				alt_logfile << logfile_entry_divider;
+
+				for (int i = 0; i < m_logfile_details.size(); i++)
+				{
+					logfile << m_logfile_details[i] << ", ";
+					alt_logfile << m_logfile_details[i] << ", ";
+				}
+				logfile << plat_newline;
+				alt_logfile << plat_newline;
+				logfile.close();
+				alt_logfile.close();
+				success = true;
+			}
+			else
+			{
+				cout << "Unable to open path to write logdetails";
+			}
+		}
+	}
+	return success;
 }
 
 string mandel_logger::extract_info_from_sysstring(string extraction_string, vector<string> tokens_to_match)

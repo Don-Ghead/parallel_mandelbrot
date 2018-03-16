@@ -19,9 +19,23 @@
 using namespace std;
 
 
-mandel_plotter::mandel_plotter(window<int> screen, window<double> fractal, int iter_max, const std::function<Complex(Complex, Complex)>& mandel_func)
-	: m_screen(screen), m_fractal(fractal), m_iter_max(iter_max), m_mandel_func(mandel_func)
+mandel_plotter::mandel_plotter(	window<int> screen,
+								window<double> fractal,
+								int iter_max,
+								const std::function<Complex(Complex, Complex)> &mandel_func,
+								mandel_logger* logger)
+	:	m_screen(screen), 
+		m_fractal(fractal), 
+		m_iter_max(iter_max), 
+		m_mandel_func(mandel_func),
+		m_logger(logger)
 {
+	m_fractal_width = fractal.width();
+	m_fractal_height = fractal.height();
+	m_fractal_y_min = fractal.get_y_min();
+	m_fractal_y_max = fractal.get_y_max();
+	m_fractal_x_min = fractal.get_x_min();
+	m_fractal_x_max = fractal.get_x_max();
 }
 
 mandel_plotter::~mandel_plotter()
@@ -31,8 +45,8 @@ mandel_plotter::~mandel_plotter()
 
 // Convert a pixel coordinate to the complex domain
 Complex mandel_plotter::pixel_to_complex(Complex complex) {
-	Complex aux(complex.real() / (double)m_screen.width() * m_fractal.width() + m_fractal.get_x_min(),
-		complex.imag() / (double)m_screen.height() * m_fractal.height() + m_fractal.get_y_min());
+	Complex aux(complex.real() / (double)m_screen_width * m_fractal_width + m_fractal_x_min,
+		complex.imag() / (double)m_screen_height * m_fractal_height + m_fractal_y_min);
 	return aux;
 }
 
@@ -41,9 +55,10 @@ Complex mandel_plotter::pixel_to_complex2(unsigned int x, unsigned int y)
 {
 	double min_real = 0.3575, max_real = 0.3580;
 	double min_imaginary = 0.111111111111;
-	double max_imaginary = min_imaginary + (max_real - min_real) * m_screen.height() / m_screen.width();
-	double real_factor = (max_real - min_real) / (m_screen.width() - 1);
-	double imaginary_factor = (max_imaginary - min_imaginary) / (m_screen.height() - 1);
+	double max_imaginary = min_imaginary + (max_real - min_real) * m_screen_height / m_screen_width;
+	double real_factor = (max_real - min_real) / (m_screen_width - 1);
+	double imaginary_factor = (max_imaginary - min_imaginary) / (m_screen_height - 1);
+
 	Complex aux(min_real + x * real_factor, max_imaginary - y * imaginary_factor);
 	return aux;
 }
@@ -66,8 +81,8 @@ int mandel_plotter::check_value_within_set(Complex c) {
 // Loop over each pixel from our image and check if the points associated with this pixel escape to infinity
 void mandel_plotter::get_number_iterations(std::vector<int> &colours) {
 	int colour_index = 0, progress = -1;
-	for (int i = m_screen.get_y_min(); i < m_screen.get_y_max(); ++i) {
-		for (int j = m_screen.get_x_min(); j < m_screen.get_x_max(); ++j) {
+	for (int i = m_screen_y_min; i < m_screen_y_max; ++i) {
+		for (int j = m_screen_x_min; j < m_screen_x_max; ++j) {
 
 			Complex c((double)j, (double)i); //Assign real(j) and imaginary(i) coord positions
 			c = pixel_to_complex(c); //convert to complex domain

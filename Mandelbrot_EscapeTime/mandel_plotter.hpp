@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "window.hpp"
+#include "mandel_logger.hpp"
 
 // Use an alias to simplify the use of complex type
 using Complex = std::complex<double>;
@@ -34,12 +35,34 @@ private:
 	//Holds the max iterations
 	int m_iter_max;
 
+	//To reduce the number of calls we need to make to getters & setters
+	//during fractal generation.
+	double m_fractal_width;
+	double m_fractal_height;
+	double m_fractal_y_min;
+	double m_fractal_y_max;
+	double m_fractal_x_min;
+	double m_fractal_x_max;
+
+	int m_screen_width;
+	int m_screen_height;
+	int m_screen_y_min;
+	int m_screen_y_max;
+	int m_screen_x_min;
+	int m_screen_x_max;
+
 	//This will hold the chosen mandelbrot function 
 	const std::function<Complex(Complex, Complex)> m_mandel_func;
 
+	mandel_logger* m_logger;
+
 public:
 
-	mandel_plotter(window<int> screen, window<double> fractal, int iter_max, const std::function<Complex(Complex, Complex)> &mandel_func);
+	mandel_plotter(	window<int> screen, 
+					window<double> fractal, 
+					int iter_max, 
+					const std::function<Complex(Complex, Complex)> &mandel_func,
+					mandel_logger* logger);
 
 	~mandel_plotter();
 
