@@ -111,6 +111,7 @@ string mandel_logger::get_sysinfo_string(void)
 
 
 	}
+	return "";
 }
 
 

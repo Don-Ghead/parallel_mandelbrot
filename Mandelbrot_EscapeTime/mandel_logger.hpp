@@ -1,5 +1,7 @@
 #pragma once
 
+//TODO - Add an openMP version to the sysinfo log
+
 #ifndef _MANDEL_LOGGER_HPP
 #define _MANDEL_LOGGER_HPP
 
