@@ -36,6 +36,13 @@ mandel_plotter::mandel_plotter(	window<int> screen,
 	m_fractal_y_max = fractal.get_y_max();
 	m_fractal_x_min = fractal.get_x_min();
 	m_fractal_x_max = fractal.get_x_max();
+
+	m_screen_width = screen.width();
+	m_screen_height = screen.height();
+	m_screen_y_min = screen.get_y_min();
+	m_screen_y_max = screen.get_y_max();
+	m_screen_x_min = screen.get_x_min();
+	m_screen_x_max = screen.get_x_max();
 }
 
 mandel_plotter::~mandel_plotter()
@@ -43,23 +50,24 @@ mandel_plotter::~mandel_plotter()
 }
 
 
-// Convert a pixel coordinate to the complex domain
+// Convert a pixel coordinate to the complex domain using a complex of the form Complex(x,y)
 Complex mandel_plotter::pixel_to_complex(Complex complex) {
 	Complex aux(complex.real() / (double)m_screen_width * m_fractal_width + m_fractal_x_min,
 		complex.imag() / (double)m_screen_height * m_fractal_height + m_fractal_y_min);
 	return aux;
 }
 
-// Convert a pixel coordinate to the complex domain
-Complex mandel_plotter::pixel_to_complex2(unsigned int x, unsigned int y)
+// Convert a pixel coordinate to the complex domain using the x,y coordinates
+Complex mandel_plotter::pixel_to_complex(unsigned int x, unsigned int y)
 {
-	double min_real = 0.3575, max_real = 0.3580;
-	double min_imaginary = 0.111111111111;
-	double max_imaginary = min_imaginary + (max_real - min_real) * m_screen_height / m_screen_width;
-	double real_factor = (max_real - min_real) / (m_screen_width - 1);
-	double imaginary_factor = (max_imaginary - min_imaginary) / (m_screen_height - 1);
+	//So in this instance x is the real part, and y is the imaginary part of the fractal boundary
+	//So y_min = minimum imaginary , x_max = maximum real
+	//We calculate y_max based on the dimensions to make sure the image does not skew 
+	double max_imaginary = m_fractal_y_min + (m_fractal_x_max - m_fractal_x_min) * m_screen_height / m_screen_width;
+	double real_factor = (m_fractal_x_max - m_fractal_x_min) / (m_screen_width - 1);
+	double imaginary_factor = (max_imaginary - m_fractal_y_min) / (m_screen_height - 1);
 
-	Complex aux(min_real + x * real_factor, max_imaginary - y * imaginary_factor);
+	Complex aux(m_fractal_y_min + x * real_factor, max_imaginary - y * imaginary_factor);
 	return aux;
 }
 
@@ -79,53 +87,55 @@ int mandel_plotter::check_value_within_set(Complex c) {
 }
 
 // Loop over each pixel from our image and check if the points associated with this pixel escape to infinity
-void mandel_plotter::get_number_iterations(std::vector<int> &colours) {
-	int colour_index = 0, progress = -1;
-	for (int i = m_screen_y_min; i < m_screen_y_max; ++i) {
-		for (int j = m_screen_x_min; j < m_screen_x_max; ++j) {
+void mandel_plotter::get_number_iterations(std::vector<int> &colours, bool use_parallel) {
+	int colour_index = 0;
+	if (!use_parallel)
+	{
+		cout << "Using sequential Mandelbrot" << endl;
+		for (int i = m_screen_y_min; i < m_screen_y_max; ++i) {
+			for (int j = m_screen_x_min; j < m_screen_x_max; ++j) {
 
-			Complex c((double)j, (double)i); //Assign real(j) and imaginary(i) coord positions
-			c = pixel_to_complex(c); //convert to complex domain
+				Complex c((double)j, (double)i); //Assign real(j) and imaginary(i) coord positions
+				c = pixel_to_complex(c); //convert to complex domain
 
-			//returns the number of iterations of our complex C 
-			//and assigns it to the appropriate colours index
-			colours[colour_index] = check_value_within_set(c);  
-			++colour_index;
-		}
-		/* May Reenable this given particular fractal parameters
-		if (progress < (int)(i*100.0 / m_screen.get_y_max())) {
+										 //returns the number of iterations of our complex C 
+										 //and assigns it to the appropriate colours index
+				colours[colour_index] = check_value_within_set(c);
+				++colour_index;
+			}
+			/* May Reenable this given particular fractal parameters
+			if (progress < (int)(i*100.0 / m_screen.get_y_max())) {
 			progress = (int)(i*100.0 / m_screen.get_y_max());
 			std::cout << progress << "%\n";
+			}
+			*/
 		}
-		*/
 	}
-}
-
-// Loop over each pixel from our image and check if the points associated with this pixel escape to infinity
-void mandel_plotter::get_parallel_number_iterations(std::vector<int> &colours) {
-	//Unfortunately OpenMP version on Visual studio doesn't support the collapse clause 
-	//So check at uni but using workaround for now
-	int colour_index = 0;
+	else
+	{
+		cout << "Using OpenMP parallelised Mandelbrot" << endl;
+		//Unfortunately OpenMP version on Visual studio doesn't support the collapse clause 
+		//So check at uni but using workaround for now
 #pragma omp parallel private(colour_index)
-	for (int y = m_screen.get_y_min(); y < m_screen.get_y_max(); ++y) {
+		for (int y = m_screen_y_min; y < m_screen_y_max; ++y) {
 #pragma omp parallel for schedule(dynamic,1) 
-		for (int x = m_screen.get_x_min(); x < m_screen.get_x_max(); ++x) {
+			for (int x = m_screen_x_min; x < m_screen_x_max; ++x) {
+				//for Row-major ordering the offset is calculated as (row * NumColumns )+ column
+				colour_index = y * m_screen_x_max + x;
+				//Complex c((double)x, (double)y); //Assign two coordinate positions to complex
+				Complex c = pixel_to_complex(x, y); //convert to complex domain
 
-			//I think for Row-major ordering the offset is calculated as (row * NumColumns )+ column
-			colour_index = y * m_screen.get_x_max() + x; 
-			//Complex c((double)x, (double)y); //Assign two coordinate positions to complex
-			Complex c = pixel_to_complex2(x, y); //convert to complex domain
-
-			//returns the number of iterations of our complex C 
-			//and assigns it to the appropriate colours index
-			colours[colour_index] = check_value_within_set(c);
+													//returns the number of iterations of our complex C 
+													//and assigns it to the appropriate colours index
+				colours[colour_index] = check_value_within_set(c);
+			}
+			/* May Reenable this given particular fractal parameters
+			if (progress < (int)(i*100.0 / m_screen.get_y_max())) {
+			progress = (int)(i*100.0 / m_screen.get_y_max());
+			std::cout << progress << "%\n";
+			}
+			*/
 		}
-		/* May Reenable this given particular fractal parameters
-		if (progress < (int)(i*100.0 / m_screen.get_y_max())) {
-		progress = (int)(i*100.0 / m_screen.get_y_max());
-		std::cout << progress << "%\n";
-		}
-		*/
 	}
 }
 
@@ -133,18 +143,25 @@ void mandel_plotter::get_parallel_number_iterations(std::vector<int> &colours) {
 void mandel_plotter::fractal(std::vector<int> &colours, bool use_parallel) {
 	
 	auto start = std::chrono::steady_clock::now();
+	get_number_iterations(colours, use_parallel);
+	auto end = std::chrono::steady_clock::now();
+
+	//Now we add some basic details to the logfile 
 	if (!use_parallel)
 	{
-		cout << "Using sequential fractal generation" << endl;
-		get_number_iterations(colours);
+		m_logger->add_logfile_detail("Sequential");
+
 	}
 	else
 	{
-		cout << "Using parallel OpenMP for fractal generation" << endl;
-		get_parallel_number_iterations(colours);
+		m_logger->add_logfile_detail("Parallelized: OpenMP");
 	}
-	auto end = std::chrono::steady_clock::now();
-	std::cout << "Time to generate fractals= " << std::chrono::duration <double, std::milli>(end - start).count() << " [ms]" << std::endl;
+	m_logger->add_logfile_detail("Image Dimensions: " + to_string(m_screen_width) + "," + to_string(m_screen_height));
+
+	//TODO - This may not work check logfile to double check
+	double temp_duration = std::chrono::duration <double, std::milli>(end - start).count();
+	m_logger->add_logfile_detail("Time to generate fractals: " + to_string( temp_duration ) + " [ms]");
+	std::cout << "Time to generate fractals: " << std::chrono::duration <double, std::milli>(end - start).count() << " [ms]" << std::endl;
 }
 
 

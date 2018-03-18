@@ -72,13 +72,11 @@ public:
 
 	Complex pixel_to_complex(Complex complex);
 
-	Complex pixel_to_complex2(unsigned int x, unsigned int y);
+	Complex pixel_to_complex(unsigned int x, unsigned int y);
 
 	int check_value_within_set(Complex c);
 
-	void get_number_iterations(std::vector<int> &colours);
-
-	void get_parallel_number_iterations(std::vector<int> &colours);
+	void get_number_iterations(std::vector<int> &colours, bool use_parallel);
 
 	void fractal(std::vector<int> &colours, bool use_parallel);
 };
@@ -89,7 +87,7 @@ public:
 
 	//First attempt
 	double min_real = 0.3575, max_real = 0.3585;
-	double min_imaginary = 0.11;
+	double min_imaginary = 0.11; 
 
 
 
