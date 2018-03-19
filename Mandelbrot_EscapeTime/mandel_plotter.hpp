@@ -51,6 +51,11 @@ private:
 	int m_screen_x_min;
 	int m_screen_x_max;
 
+	//For image scaling
+	double m_max_imaginary;
+	double m_real_factor;
+	double imaginary_factor;
+
 	//This will hold the chosen mandelbrot function 
 	const std::function<Complex(Complex, Complex)> m_mandel_func;
 

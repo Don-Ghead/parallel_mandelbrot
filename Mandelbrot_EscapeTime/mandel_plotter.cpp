@@ -43,6 +43,13 @@ mandel_plotter::mandel_plotter(	window<int> screen,
 	m_screen_y_max = screen.get_y_max();
 	m_screen_x_min = screen.get_x_min();
 	m_screen_x_max = screen.get_x_max();
+
+	//So in this instance x is the real part, and y is the imaginary part of the fractal boundary
+	//So y_min = minimum imaginary , x_max = maximum real
+	//We calculate y_max based on the dimensions to make sure the image does not skew 
+	m_max_imaginary = m_fractal_y_min + (m_fractal_x_max - m_fractal_x_min) * m_screen_height / m_screen_width;
+	m_real_factor = (m_fractal_x_max - m_fractal_x_min) / (m_screen_width - 1);
+	imaginary_factor = (m_max_imaginary - m_fractal_y_min) / (m_screen_height - 1);
 }
 
 mandel_plotter::~mandel_plotter()
@@ -51,9 +58,9 @@ mandel_plotter::~mandel_plotter()
 
 
 // Convert a pixel coordinate to the complex domain using a complex of the form Complex(x,y)
-Complex mandel_plotter::pixel_to_complex(Complex complex) {
-	Complex aux(complex.real() / (double)m_screen_width * m_fractal_width + m_fractal_x_min,
-		complex.imag() / (double)m_screen_height * m_fractal_height + m_fractal_y_min);
+Complex mandel_plotter::pixel_to_complex(Complex c) {
+	Complex aux(c.real() / (double)m_screen_width * m_fractal_width + m_fractal_x_min,
+		c.imag() / (double)m_screen_height * m_fractal_height + m_fractal_y_min);
 	return aux;
 }
 
@@ -61,13 +68,8 @@ Complex mandel_plotter::pixel_to_complex(Complex complex) {
 Complex mandel_plotter::pixel_to_complex(unsigned int x, unsigned int y)
 {
 	//So in this instance x is the real part, and y is the imaginary part of the fractal boundary
-	//So y_min = minimum imaginary , x_max = maximum real
-	//We calculate y_max based on the dimensions to make sure the image does not skew 
-	double max_imaginary = m_fractal_y_min + (m_fractal_x_max - m_fractal_x_min) * m_screen_height / m_screen_width;
-	double real_factor = (m_fractal_x_max - m_fractal_x_min) / (m_screen_width - 1);
-	double imaginary_factor = (max_imaginary - m_fractal_y_min) / (m_screen_height - 1);
 
-	Complex aux(m_fractal_y_min + x * real_factor, max_imaginary - y * imaginary_factor);
+	Complex aux(m_fractal_y_min + x * m_real_factor, m_max_imaginary - y * imaginary_factor);
 	return aux;
 }
 
@@ -87,13 +89,16 @@ int mandel_plotter::check_value_within_set(Complex c) {
 }
 
 // Loop over each pixel from our image and check if the points associated with this pixel escape to infinity
-void mandel_plotter::get_number_iterations(std::vector<int> &colours, bool use_parallel) {
+void mandel_plotter::get_number_iterations(std::vector<int> &colours, bool use_parallel)
+{
 	int colour_index = 0;
 	if (!use_parallel)
 	{
 		cout << "Using sequential Mandelbrot" << endl;
-		for (int i = m_screen_y_min; i < m_screen_y_max; ++i) {
-			for (int j = m_screen_x_min; j < m_screen_x_max; ++j) {
+		for (int i = m_screen_y_min; i < m_screen_y_max; ++i) 
+		{
+			for (int j = m_screen_x_min; j < m_screen_x_max; ++j) 
+			{
 
 				Complex c((double)j, (double)i); //Assign real(j) and imaginary(i) coord positions
 				c = pixel_to_complex(c); //convert to complex domain
@@ -117,9 +122,11 @@ void mandel_plotter::get_number_iterations(std::vector<int> &colours, bool use_p
 		//Unfortunately OpenMP version on Visual studio doesn't support the collapse clause 
 		//So check at uni but using workaround for now
 #pragma omp parallel private(colour_index)
-		for (int y = m_screen_y_min; y < m_screen_y_max; ++y) {
+		for (int y = m_screen_y_min; y < m_screen_y_max; ++y) 
+		{
 #pragma omp parallel for schedule(dynamic,1) 
-			for (int x = m_screen_x_min; x < m_screen_x_max; ++x) {
+			for (int x = m_screen_x_min; x < m_screen_x_max; ++x) 
+			{
 				//for Row-major ordering the offset is calculated as (row * NumColumns )+ column
 				colour_index = y * m_screen_x_max + x;
 				//Complex c((double)x, (double)y); //Assign two coordinate positions to complex
@@ -140,8 +147,10 @@ void mandel_plotter::get_number_iterations(std::vector<int> &colours, bool use_p
 }
 
 //Can definitely expand the performance testing & analysis in here once working as intended.
-void mandel_plotter::fractal(std::vector<int> &colours, bool use_parallel) {
-	
+void mandel_plotter::fractal(std::vector<int> &colours, bool use_parallel) 
+{
+	//May re-enable the progress bar for larger fractal computations
+	cout << "Computing Mandelbrot Fractals please wait..." << endl;
 	auto start = std::chrono::steady_clock::now();
 	get_number_iterations(colours, use_parallel);
 	auto end = std::chrono::steady_clock::now();
