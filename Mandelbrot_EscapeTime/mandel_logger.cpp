@@ -20,6 +20,12 @@ const vector<string> sysinfo_tokens
 	"cpu cores"
 };
 
+#if defined(__unix__)
+string plat_newline("\\n");
+#elif defined(WIN32) || defined(_WIN32)
+string plat_newline("\\r\\n");
+#endif
+
 //Don't need to check the log level as it is enumerated and must be on of the specified values
 mandel_logger::mandel_logger(Log_level log_lvl, string altlog_filename)
 	: m_log_level(log_lvl), m_permalog_filename(perma_log_filepath), m_using_altlog(false)
@@ -207,10 +213,10 @@ string mandel_logger::get_sysinfo_string(void)
 	//ELSE WINDOWS
 	else
 	{
-		SYSTEM_INFO siSysInfo;
+		//SYSTEM_INFO siSysInfo;
 
 		// Copy the hardware information to the SYSTEM_INFO structure. 
-		GetSystemInfo(&siSysInfo);
+		//GetSystemInfo(&siSysInfo);
 
 
 	}

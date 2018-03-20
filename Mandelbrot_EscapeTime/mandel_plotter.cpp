@@ -3,6 +3,7 @@
 //Refactored for better clarity 
 
 #include "mandel_plotter.hpp"
+#include "mandel_logger.hpp"
 
 #include <tuple>
 #include <vector>
@@ -46,10 +47,9 @@ mandel_plotter::mandel_plotter(	window<int> screen,
 
 	//So in this instance x is the real part, and y is the imaginary part of the fractal boundary
 	//So y_min = minimum imaginary , x_max = maximum real
-	//We calculate y_max based on the dimensions to make sure the image does not skew 
-	m_max_imaginary = m_fractal_y_min + (m_fractal_x_max - m_fractal_x_min) * m_screen_height / m_screen_width;
-	m_real_factor = (m_fractal_x_max - m_fractal_x_min) / (m_screen_width - 1);
-	imaginary_factor = (m_max_imaginary - m_fractal_y_min) / (m_screen_height - 1);
+	//We calculate y_max based on the dimensions to make sure the image does not skew
+	//m_max_imaginary = m_fractal_y_min + (m_fractal_x_max - m_fractal_x_min) * m_screen_height / m_screen_width;
+	m_max_imaginary = m_fractal_y_max;
 }
 
 mandel_plotter::~mandel_plotter()
@@ -68,8 +68,13 @@ Complex mandel_plotter::pixel_to_complex(Complex c) {
 Complex mandel_plotter::pixel_to_complex(unsigned int x, unsigned int y)
 {
 	//So in this instance x is the real part, and y is the imaginary part of the fractal boundary
+	double min_real = 0.3575, max_real = 0.3585;
+	double min_imaginary = 0.11;
+	double max_imaginary = min_imaginary + (max_real - min_real) * m_screen_height / m_screen_width;
+	m_real_factor = (max_real - min_real) / (m_screen_width - 1);
+	m_imaginary_factor = (max_imaginary - min_imaginary) / (m_screen_height - 1);
 
-	Complex aux(m_fractal_y_min + x * m_real_factor, m_max_imaginary - y * imaginary_factor);
+	Complex aux(min_real + x * m_real_factor, max_imaginary - y * m_imaginary_factor);
 	return aux;
 }
 
@@ -121,10 +126,12 @@ void mandel_plotter::get_number_iterations(std::vector<int> &colours, bool use_p
 		cout << "Using OpenMP parallelised Mandelbrot" << endl;
 		//Unfortunately OpenMP version on Visual studio doesn't support the collapse clause 
 		//So check at uni but using workaround for now
+
 #pragma omp parallel private(colour_index)
+//#pragma omp parallel for private(colour_index) collapse(2)
 		for (int y = m_screen_y_min; y < m_screen_y_max; ++y) 
 		{
-#pragma omp parallel for schedule(dynamic,1) 
+#pragma omp_parallel for schedule(dynamic, 1)
 			for (int x = m_screen_x_min; x < m_screen_x_max; ++x) 
 			{
 				//for Row-major ordering the offset is calculated as (row * NumColumns )+ column

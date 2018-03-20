@@ -15,16 +15,18 @@ using namespace std;
 const string perma_log_filepath("..\\resources\\logs\\perma_log.txt");
 const string sysinfo_path("/proc/cpuinfo");
 
-#if defined(__unix__)
-string plat_newline("\\n");
-#elif defined(WIN32) || defined(_WIN32)
-string plat_newline("\\r\\n");
-#endif
+//#if defined(__unix__)
+//string plat_newline("\\n");
+//# error "Got unix newline"
+//#elif defined(WIN32) || defined(_WIN32)
+//string plat_newline("\\r\\n");
+//# error "Else got window newline"
+//#endif
 
 //Divides every new entry to the logfile (between runs)
-const string logfile_entry_divider(plat_newline + "#NEW_ENTRY" + plat_newline);
+const string logfile_entry_divider("\\n#NEW_ENTRY\\n");
 
-const enum Log_level{
+enum Log_level{
 	NONE = 0,
 	MINIMUM = 1,
 	DEFAULT = 2,
@@ -108,3 +110,4 @@ public:
 };
 
 #endif
+

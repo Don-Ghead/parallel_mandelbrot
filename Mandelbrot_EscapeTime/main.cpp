@@ -7,7 +7,11 @@ using namespace std;
 // Use an alias to simplify the use of complex type
 
 //Filepath stuff
-const string default_image_filepath("..\\resources\\mandelbrot\\"), new_image_filepath;
+#if defined(__unix__)
+const string default_image_filepath("../resources/mandelbrot/");
+#elif defined(_WIN32) || defined(WIN32)
+const string default_image_filepath("..\\resources\\mandelbrot\\");
+#endif
 const string default_image_filename("mandel.bmp");
 
 bool get_userdefined_params(int &width, int &height, int &max_iter, bool &use_parallel)
@@ -23,7 +27,7 @@ bool get_userdefined_params(int &width, int &height, int &max_iter, bool &use_pa
 	cin >> temp;
 	cout << endl;
 
-	if (0 == temp) 
+	if (0 == temp)
 	{
 		use_parallel = false;
 	} 
@@ -124,7 +128,8 @@ int main(void)
 
 	//Fourth value doesn't matter for fractal as it is calculated based on other values
 	//window<double> fractal(-2.2, 1.2, -1.7, 1.7); //Zoomed out preset
-	window<double> fractal(0.3575, 0.3585, 0.11, 0); //Zoomed in preset
+	double max_imag = 0.1 + (0.385-0.375) * height / width;
+	window<double> fractal(0.3575, 0.3585, 0.11, max_imag); //Zoomed in preset
 
 	//Create the mandel_logger - Don't care about alternate logfile for now
 	mandel_logger logger(Log_level::DEFAULT);
@@ -156,9 +161,14 @@ int main(void)
 		}
 		else
 		{
-			//Get the filename out of the path 
-			size_t found = new_image_filepath.find_last_of("\\");
-			if (found > 0)
+			//Get the filename out of the path
+			size_t found;
+#if defined(__unix__)
+			found = new_image_filepath.find_last_of("/");
+#elif defined(_WIN32) || defined(WIN32)
+			found = new_image_filepath.find_last_of("\\");
+#endif
+			if (0 < found)
 			{
 				new_image_filename = new_image_filepath.substr(found + 1);
 				new_image_filepath = new_image_filepath.substr(0, found);
