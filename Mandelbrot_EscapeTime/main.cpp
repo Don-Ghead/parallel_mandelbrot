@@ -147,7 +147,6 @@ int main(void)
 	//to the underlying way in which it computes these fractals.
 	plotter.fractal(colours, use_parallel);
 
-	//
 	string new_image_filepath, new_image_filename;
 	if (0 == testmode)
 	{

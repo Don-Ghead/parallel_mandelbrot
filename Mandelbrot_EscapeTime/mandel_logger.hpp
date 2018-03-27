@@ -12,19 +12,20 @@
 
 using namespace std;
 
-const string perma_log_filepath("..\\resources\\logs\\perma_log.txt");
+#if defined(__unix__)
 const string sysinfo_path("/proc/cpuinfo");
+const string perma_log_filepath("../resources/logs/perma_log.txt");
+#elif defined(_WIN32) || (WIN32)
+const string perma_log_filepath("..\\resources\\logs\\perma_log.txt");
+#endif
 
-//#if defined(__unix__)
-//string plat_newline("\\n");
-//# error "Got unix newline"
-//#elif defined(WIN32) || defined(_WIN32)
-//string plat_newline("\\r\\n");
-//# error "Else got window newline"
-//#endif
 
 //Divides every new entry to the logfile (between runs)
+#if defined(__unix__)
 const string logfile_entry_divider("\\n#NEW_ENTRY\\n");
+#elif defined(_WIN32) || (WIN32)
+const string logfile_entry_divider("\\r\\n#NEW_ENTRY\\r\\n");
+#endif
 
 enum Log_level{
 	NONE = 0,
@@ -95,7 +96,7 @@ public:
 
 	//Adds a single string detail to m_logfile_details, used for most of the fractal 
 	//generation details that we don't need to store in this class 
-	bool add_logfile_detail(string log_detail);
+	void add_logfile_detail(string log_detail);
 	
 
 	/************************************************

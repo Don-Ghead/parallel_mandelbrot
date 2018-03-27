@@ -39,10 +39,10 @@ private:
 	//during fractal generation.
 	double m_fractal_width;
 	double m_fractal_height;
-	double m_fractal_y_min;
-	double m_fractal_y_max;
-	double m_fractal_x_min;
-	double m_fractal_x_max;
+	double m_fractal_min_imaginary;
+	double m_fractal_max_imaginary;
+	double m_fractal_min_real;
+	double m_fractal_max_real;
 
 	int m_screen_width;
 	int m_screen_height;
@@ -51,7 +51,7 @@ private:
 	int m_screen_x_min;
 	int m_screen_x_max;
 
-	//For image scaling
+	//For image scaling based on screen resolution 
 	double m_max_imaginary;
 	double m_real_factor;
 	double m_imaginary_factor;
