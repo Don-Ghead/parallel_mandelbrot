@@ -26,12 +26,6 @@ class mandel_plotter
 
 private:
 
-	//The specified screen boundary
-	window<int> m_screen;
-
-	//The specified fractal boundary
-	window<double> m_fractal;
-
 	//Holds the max iterations
 	int m_iter_max;
 
@@ -52,7 +46,6 @@ private:
 	int m_screen_x_max;
 
 	//For image scaling based on screen resolution 
-	double m_max_imaginary;
 	double m_real_factor;
 	double m_imaginary_factor;
 

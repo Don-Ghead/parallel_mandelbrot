@@ -128,8 +128,8 @@ int main(void)
 
 	//Fourth value doesn't matter for fractal as it is calculated based on other values
 	//window<double> fractal(-2.2, 1.2, -1.7, 1.7); //Zoomed out preset
-	double max_imag = 0.1 + (0.385-0.375) * height / width;
-	window<double> fractal(0.3575, 0.3585, 0.11, max_imag); //Zoomed in preset
+	//double max_imag = 0.1 + (0.385-0.375) * height / width;
+	window<double> fractal(0.3575, 0.3585, 0.11, 0); //Zoomed in preset
 
 	//Create the mandel_logger - Don't care about alternate logfile for now
 	mandel_logger logger(Log_level::DEFAULT);
