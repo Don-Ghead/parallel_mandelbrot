@@ -3,6 +3,7 @@
 //Refactored for better clarity 
 
 #include "mandel_plotter.hpp"
+#include "mandel_logger.hpp"
 
 #include <tuple>
 #include <vector>
@@ -32,10 +33,10 @@ mandel_plotter::mandel_plotter(	window<int> screen,
 {
 	m_fractal_width = fractal.width();
 	m_fractal_height = fractal.height();
-	m_fractal_y_min = fractal.get_y_min();
-	m_fractal_y_max = fractal.get_y_max();
-	m_fractal_x_min = fractal.get_x_min();
-	m_fractal_x_max = fractal.get_x_max();
+	m_fractal_min_imaginary = fractal.get_y_min();
+	m_fractal_max_imaginary = fractal.get_y_max();
+	m_fractal_min_real = fractal.get_x_min();
+	m_fractal_max_real = fractal.get_x_max();
 
 	m_screen_width = screen.width();
 	m_screen_height = screen.height();
@@ -46,21 +47,20 @@ mandel_plotter::mandel_plotter(	window<int> screen,
 
 	//So in this instance x is the real part, and y is the imaginary part of the fractal boundary
 	//So y_min = minimum imaginary , x_max = maximum real
-	//We calculate y_max based on the dimensions to make sure the image does not skew 
-	m_max_imaginary = m_fractal_y_min + (m_fractal_x_max - m_fractal_x_min) * m_screen_height / m_screen_width;
-	m_real_factor = (m_fractal_x_max - m_fractal_x_min) / (m_screen_width - 1);
-	imaginary_factor = (m_max_imaginary - m_fractal_y_min) / (m_screen_height - 1);
+	//We calculate y_max based on the dimensions to make sure the image does not skew
+	m_max_imaginary = m_fractal_min_imaginary + (m_fractal_max_real - m_fractal_min_real) * m_screen_height / m_screen_width;
+	m_real_factor = (m_fractal_max_real - m_fractal_min_real) / (m_screen_width - 1);
+	m_imaginary_factor = (m_fractal_max_imaginary - m_fractal_min_imaginary) / (m_screen_height - 1);
 }
 
 mandel_plotter::~mandel_plotter()
 {
 }
 
-
 // Convert a pixel coordinate to the complex domain using a complex of the form Complex(x,y)
 Complex mandel_plotter::pixel_to_complex(Complex c) {
-	Complex aux(c.real() / (double)m_screen_width * m_fractal_width + m_fractal_x_min,
-		c.imag() / (double)m_screen_height * m_fractal_height + m_fractal_y_min);
+	Complex aux(c.real() / (double)m_screen_width * m_fractal_width + m_fractal_min_real,
+		c.imag() / (double)m_screen_height * m_fractal_height + m_fractal_min_imaginary);
 	return aux;
 }
 
@@ -68,8 +68,11 @@ Complex mandel_plotter::pixel_to_complex(Complex c) {
 Complex mandel_plotter::pixel_to_complex(unsigned int x, unsigned int y)
 {
 	//So in this instance x is the real part, and y is the imaginary part of the fractal boundary
-
-	Complex aux(m_fractal_y_min + x * m_real_factor, m_max_imaginary - y * imaginary_factor);
+	//double min_real = 0.3575, max_real = 0.3585;
+	//double min_imaginary = 0.11;
+	//double max_imaginary = min_imaginary + (max_real - min_real) * m_screen_height / m_screen_width;
+	
+	Complex aux(m_fractal_min_real + x * m_real_factor, m_fractal_max_imaginary - y * m_imaginary_factor);
 	return aux;
 }
 
@@ -121,10 +124,12 @@ void mandel_plotter::get_number_iterations(std::vector<int> &colours, bool use_p
 		cout << "Using OpenMP parallelised Mandelbrot" << endl;
 		//Unfortunately OpenMP version on Visual studio doesn't support the collapse clause 
 		//So check at uni but using workaround for now
+
 #pragma omp parallel private(colour_index)
+//#pragma omp parallel for private(colour_index) collapse(2)
 		for (int y = m_screen_y_min; y < m_screen_y_max; ++y) 
 		{
-#pragma omp parallel for schedule(dynamic,1) 
+#pragma omp parallel for schedule(dynamic, 1)
 			for (int x = m_screen_x_min; x < m_screen_x_max; ++x) 
 			{
 				//for Row-major ordering the offset is calculated as (row * NumColumns )+ column
