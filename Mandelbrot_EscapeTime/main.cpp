@@ -2,6 +2,9 @@
 #include "mandel_plotter.hpp"
 #include <iostream>
 
+#if defined (__unix__)
+#include <mpi.h>
+#endif
 
 using namespace std;
 // Use an alias to simplify the use of complex type
@@ -14,7 +17,7 @@ const string default_image_filepath("..\\resources\\mandelbrot\\");
 #endif
 const string default_image_filename("mandel.bmp");
 
-bool get_userdefined_params(int &width, int &height, int &max_iter, bool &use_parallel)
+bool get_userdefined_params(int &width, int &height, int &max_iter, parallelisation_type &parallel_type)
 {
 	int temp;
 	cout << "Define image width (x): ";
@@ -23,21 +26,25 @@ bool get_userdefined_params(int &width, int &height, int &max_iter, bool &use_pa
 	cin >> height;
 	cout << endl << "Define the max number of iterations: ";
 	cin >> max_iter;
-	cout << endl << "Use OpenMP For parallelization? 0 for no, 1 for yes: ";
+	cout << endl << "Define parallelisation type: " << endl;
+	cout << "\t 0: no parallelisation\n" << \
+		"\t	1: OpenMP parallelisation\n" << \
+		"\t 2: MPI parallelisation\n" << \
+		"\t 3: OpenMP & MPI parallelisation" << endl;  \
 	cin >> temp;
 	cout << endl;
 
 	if (0 == temp)
 	{
-		use_parallel = false;
+		parallel_type = NO_PARALLEL;
 	} 
 	else if (1 == temp)
 	{
-		use_parallel = true;
+		parallel_type = OMP_PARALLEL;
 	}
 	else
 	{
-		use_parallel = false;
+		parallel_type= MPI_PARALLEL;
 	}
 
 	if ((width > 0) && (height > 0) && (max_iter > 0) )
@@ -46,7 +53,7 @@ bool get_userdefined_params(int &width, int &height, int &max_iter, bool &use_pa
 		return false;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
 
 
@@ -62,7 +69,7 @@ int main(void)
 	std::function<Complex(Complex, Complex)> third_order_mandel = [](Complex z, Complex c) -> Complex {return z * z * z + c; };
 
 	int width, height, max_iter;
-	bool use_parallel = true;
+	parallelisation_type parallel_type = NO_PARALLEL;
 	int testmode;
 
 	/**************************************
@@ -79,7 +86,7 @@ int main(void)
 	switch (testmode)
 	{
 	case 0:
-		if (!get_userdefined_params(width, height, max_iter, use_parallel))
+		if (!get_userdefined_params(width, height, max_iter, parallel_type))
 		{
 			cout << "User defined paramaters are not valid, exiting" << endl;
 			return 0;
@@ -134,6 +141,10 @@ int main(void)
 	//Create the mandel_logger - Don't care about alternate logfile for now
 	mandel_logger logger(Log_level::DEFAULT);
 
+#if defined (__unix__)
+	MPI_Init(&argc, &argv);
+#endif
+
 	//Now create the plotter using the parameters specified above
 	mandel_plotter plotter(screen, fractal, max_iter, first_order_mandel, &logger);
 
@@ -145,7 +156,11 @@ int main(void)
 	//Now plot the fractal, for convenience sake this is fairly well wrapped up, however
 	//when it comes to performance testing and parallelization there will likely be changes
 	//to the underlying way in which it computes these fractals.
-	plotter.fractal(colours, use_parallel);
+	plotter.fractal(colours, parallel_type);
+
+#if defined (__unix__)
+	MPI_Finalize();
+#endif
 
 	string new_image_filepath, new_image_filename;
 	if (0 == testmode)

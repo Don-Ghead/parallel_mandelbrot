@@ -1,4 +1,4 @@
-CXX=g++
+CXX=mpic++
 RM=rm -f
 CPPFLAGS=-fopenmp -std=c++11
 
@@ -17,9 +17,8 @@ image_handler.o: image_handler.cpp image_handler.hpp bitmap_image.hpp window.hpp
 mandel_plotter.o: mandel_plotter.cpp mandel_plotter.hpp window.hpp mandel_logger.hpp
 	$(CXX) $(CPPFLAGS) -c mandel_plotter.cpp -o mandel_plotter.o
 
-
 main.o: main.cpp image_handler.hpp mandel_plotter.hpp 
 	$(CXX) $(CPPFLAGS) -c main.cpp -o main.o
 
 clean:
-	$(RM) *.o mandel 
+	$(RM) *.o mandel

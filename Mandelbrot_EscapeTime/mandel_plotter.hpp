@@ -14,6 +14,13 @@
 // Use an alias to simplify the use of complex type
 using Complex = std::complex<double>;
 
+enum parallelisation_type
+{
+	NO_PARALLEL,
+	OMP_PARALLEL,
+	MPI_PARALLEL,
+	BOTH_PARALLEL
+};
 /***************************************************************
 
 BEGIN CLASS::MANDEL_PLOTTER
@@ -74,9 +81,9 @@ public:
 
 	int check_value_within_set(Complex c);
 
-	void get_number_iterations(std::vector<int> &colours, bool use_parallel);
+	void get_number_iterations(std::vector<int> &colours, parallelisation_type parallel_type);
 
-	void fractal(std::vector<int> &colours, bool use_parallel);
+	void fractal(std::vector<int> &colours, parallelisation_type parallel_type);
 };
 
 /*

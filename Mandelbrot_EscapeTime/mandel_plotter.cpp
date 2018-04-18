@@ -12,13 +12,17 @@
 #include <iostream>
 #include <omp.h>
 
+#if defined(__unix__)
+#include <mpi.h>
+#endif
+
 #define DEFAULT_MAX_ITERATIONS 800
 
 #define MAX_COLOURS_PER_ELEMENT 256
 #define MAX_COLOURS_RGB	16777216  // 256^3 
 
 using namespace std;
-
+using std::cout;
 
 mandel_plotter::mandel_plotter(	window<int> screen,
 								window<double> fractal,
@@ -64,11 +68,6 @@ Complex mandel_plotter::pixel_to_complex(Complex c) {
 // Convert a pixel coordinate to the complex domain using the x,y coordinates
 Complex mandel_plotter::pixel_to_complex(unsigned int x, unsigned int y)
 {
-	//So in this instance x is the real part, and y is the imaginary part of the fractal boundary
-	//double min_real = 0.3575, max_real = 0.3585;
-	//double min_imaginary = 0.11; 
-	//double max_imaginary = min_imaginary + (max_real - min_real) * m_screen_height / m_screen_width;
-	
 	Complex aux(m_fractal_min_real + x * m_real_factor, m_fractal_max_imaginary - y * m_imaginary_factor);
 	return aux;
 }
@@ -89,10 +88,10 @@ int mandel_plotter::check_value_within_set(Complex c) {
 }
 
 // Loop over each pixel from our image and check if the points associated with this pixel escape to infinity
-void mandel_plotter::get_number_iterations(std::vector<int> &colours, bool use_parallel)
+void mandel_plotter::get_number_iterations(std::vector<int> &colours, parallelisation_type parallel_type)
 {
 	int colour_index = 0;
-	if (!use_parallel)
+	if (NO_PARALLEL == parallel_type)
 	{
 		cout << "Using sequential Mandelbrot" << endl;
 		for (int i = m_screen_y_min; i < m_screen_y_max; ++i) 
@@ -116,7 +115,7 @@ void mandel_plotter::get_number_iterations(std::vector<int> &colours, bool use_p
 			*/
 		}
 	}
-	else
+	else if( OMP_PARALLEL == parallel_type)
 	{
 		cout << "Using OpenMP parallelised Mandelbrot" << endl;
 		//Unfortunately OpenMP version on Visual studio doesn't support the collapse clause 
@@ -146,28 +145,132 @@ void mandel_plotter::get_number_iterations(std::vector<int> &colours, bool use_p
 			*/
 		}
 	}
+	else if (MPI_PARALLEL == parallel_type)
+	{
+		//Divide size of colours vector by number of MPI instances to get 
+		//Boundaries for each instance of MPI program to work on 
+		int mpincrement = 0;
+		int mpi_comm_size = 0;
+#if defined(__unix__)
+		MPI_Comm_size(MPI_COMM_WORLD, &mpi_comm_size);
+#endif
+		mpincrement = colours.size() / mpi_comm_size;
+
+		//Output the buffer boundaries during testing (this could also go to logger)
+		cout << "Size of entire buffer: " << m_screen_height * m_screen_width << endl;
+		cout << "Increment size of buffer: " << mpincrement << endl;
+
+		//define the boundary based on the MPI instance rank
+		//bounds low = x * S/N
+		//bounds high = ((x+1) * S/N) - 1
+		size_t rank;
+#if defined(__unix__)
+		MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+#endif
+		size_t buf_bounds_low = rank * mpincrement;
+		size_t buf_bounds_high = ((rank + 1) * mpincrement) - 1;
+
+		cout << "Using MPI only Mandelbrot" << endl;
+		for (int i = buf_bounds_low; i < buf_bounds_high; ++i)
+		{
+			int x = i % m_screen_x_max;
+			int y = (i - x) / m_screen_x_max;
+			Complex c = pixel_to_complex(x, y); //convert to complex domain
+
+												//returns the number of iterations of our complex C 
+												//and assigns it to the appropriate colours index
+			colours[i] = check_value_within_set(c);
+		}
+
+		//Now Either Send or receive data to combine into master data container
+		if (0 != rank) //If not master send data to master
+		{
+#if defined(__unix__)
+			MPI_Send(colours[buf_bounds_low],	//Buffer 
+				mpincrement,				//Amount of data to send
+				MPI_INT,					//data type
+				0,							//Destination (master)
+				MPI_ANY_TAG,				//Tag (don't need one)
+				MPI_COMM_WORLD
+				);
+			
+			cout << "Send call from rank " << rank << endl;
+#endif
+		}
+		else //Master, receive data and allocate to colours vector
+		{
+#if defined(__unix__)
+
+			for (int t = 0; t < mpi_comm_size; t++)
+			{ 
+				vector<int> temp_colours;
+				MPI_Status status;
+				size_t rcv_rank;
+
+				temp_colours.resize(mpincrement);
+				MPI_Recv(temp_colours.data(),
+					mpincrement,
+					MPI_INT,
+					MPI_ANY_SOURCE,
+					MPI_ANY_TAG,
+					MPI_COMM_WORLD,
+					&status
+					);
+
+				rcv_rank = status.MPI_SOURCE;
+				cout << "Master Receive call from rank " << rcv_rank << endl;
+
+				size_t rcvbuf_bounds_low = rcv_rank * mpincrement;
+				size_t rcvbuf_bounds_high = ((rcv_rank + 1) * mpincrement) - 1;
+
+				for (int b = rcvbuf_bounds_low; b < rcvbuf_bounds_high; b++)
+				{
+					int index = 0;
+					colours[b] = temp_colours[index];
+					index++;
+				}
+			}
+			
+#endif
+		}
+		
+	}
+	else if (BOTH_PARALLEL == parallel_type)
+	{
+
+	}
 }
 
 //Can definitely expand the performance testing & analysis in here once working as intended.
-void mandel_plotter::fractal(std::vector<int> &colours, bool use_parallel) 
+void mandel_plotter::fractal(std::vector<int> &colours, parallelisation_type parallel_type) 
 {
 	//May re-enable the progress bar for larger fractal computations
 	cout << "Computing Mandelbrot Fractals please wait..." << endl;
 	auto start = std::chrono::steady_clock::now();
-	get_number_iterations(colours, use_parallel);
+	get_number_iterations(colours, parallel_type);
 	auto end = std::chrono::steady_clock::now();
 
 	//Now we add some basic details to the logfile 
-	if (!use_parallel)
+	switch(parallel_type)
 	{
+	case NO_PARALLEL:
 		m_logger->add_logfile_detail("Sequential");
-
-	}
-	else
-	{
+		break;
+	
+	case OMP_PARALLEL:
 		m_logger->add_logfile_detail("Parallelized: OpenMP");
+		break;
+
+	case MPI_PARALLEL:
+		m_logger->add_logfile_detail("Parallelized: MPI");
+		break;
+
+	case BOTH_PARALLEL:
+		m_logger->add_logfile_detail("Parallelized OpenMP & MPI");
+		break;
 	}
-	m_logger->add_logfile_detail("Image Dimensions: " + to_string(m_screen_width) + "," + to_string(m_screen_height));
+
+	m_logger->add_logfile_detail("Image Dimensions: [" + to_string(m_screen_width) + "," + to_string(m_screen_height) + ']');
 
 	//TODO - This may not work check logfile to double check
 	double temp_duration = std::chrono::duration <double, std::milli>(end - start).count();
