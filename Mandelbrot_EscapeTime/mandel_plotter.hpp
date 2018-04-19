@@ -33,6 +33,10 @@ class mandel_plotter
 
 private:
 
+	//MPI_RANK
+	int m_mpi_rank;
+	int m_mpi_size;
+
 	//Holds the max iterations
 	int m_iter_max;
 

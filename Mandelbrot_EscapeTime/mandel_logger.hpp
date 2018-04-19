@@ -14,9 +14,9 @@ using namespace std;
 
 #if defined(__unix__)
 const string sysinfo_path("/proc/cpuinfo");
-const string perma_log_filepath("../resources/logs/perma_log.txt");
+const string perma_log_filepath("../resources/logs/test_log.txt");
 #elif defined(_WIN32) || (WIN32)
-const string perma_log_filepath("..\\resources\\logs\\perma_log.txt");
+const string perma_log_filepath("..\\resources\\logs\\test_log.txt");
 #endif
 
 
@@ -73,6 +73,8 @@ private:
 
 	//extract information from a unix sysinfo string given a set of tokens check /proc/cpuinfo 
 	string extract_info_from_sysstring(string extraction_string, vector<string> tokens_to_match);
+
+	bool m_details_outstanding;
 
 public:
 

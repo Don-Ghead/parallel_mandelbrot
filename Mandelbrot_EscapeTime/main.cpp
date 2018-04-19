@@ -7,6 +7,7 @@
 #endif
 
 using namespace std;
+using std::cout;
 // Use an alias to simplify the use of complex type
 
 //Filepath stuff
@@ -17,37 +18,140 @@ const string default_image_filepath("..\\resources\\mandelbrot\\");
 #endif
 const string default_image_filename("mandel.bmp");
 
-bool get_userdefined_params(int &width, int &height, int &max_iter, parallelisation_type &parallel_type)
+///
+/// Get the params as master then broadcast to all MPI instances
+///
+bool get_userdefined_params(int &testmode, int &width, int &height, int &max_iter, parallelisation_type &parallel_type)
 {
-	int temp;
-	cout << "Define image width (x): ";
-	cin >> width;
-	cout << endl << "Define image height(y): ";
-	cin >> height;
-	cout << endl << "Define the max number of iterations: ";
-	cin >> max_iter;
-	cout << endl << "Define parallelisation type: " << endl;
-	cout << "\t 0: no parallelisation\n" << \
-		"\t	1: OpenMP parallelisation\n" << \
-		"\t 2: MPI parallelisation\n" << \
-		"\t 3: OpenMP & MPI parallelisation" << endl;  \
-	cin >> temp;
-	cout << endl;
+	int para_type;
+	int p_rank;
+	int test_mode;
 
-	if (0 == temp)
-	{
-		parallel_type = NO_PARALLEL;
-	} 
-	else if (1 == temp)
-	{
-		parallel_type = OMP_PARALLEL;
-	}
-	else
-	{
-		parallel_type= MPI_PARALLEL;
-	}
+#if defined(__unix__)
+	MPI_Comm_rank(MPI_COMM_WORLD, &p_rank);
+#endif
 
-	if ((width > 0) && (height > 0) && (max_iter > 0) )
+	if (0 == p_rank)
+	{
+		cout << "Use parallel test mode? 0 for no," <<
+			endl << "1 for 1k x 1k @ 500 iterations," << endl;
+		cout << "2 for 2k x 2k @ 600 iterations," <<
+			endl << "3 for 3k x 3k @ 700 iterations," << endl;
+		cout << "4 for 4k resolution image @ 800 iterations," <<
+			endl << "8 for 8k resolution image @ 800 iterations" << endl;
+		cin >> test_mode;
+
+		switch (testmode)
+		{
+		case 0:
+			cout << "Define image width (x): ";
+			cin >> width;
+			cout << endl << "Define image height(y): ";
+			cin >> height;
+			cout << endl << "Define the max number of iterations: ";
+			cin >> max_iter;
+			cout << endl << "Define parallelisation type: " << endl;
+			cout << "\t 0: no parallelisation\n" << \
+				"\t	1: OpenMP parallelisation\n" << \
+				"\t 2: MPI parallelisation\n" << \
+				"\t 3: OpenMP & MPI parallelisation" << endl;  \
+				cin >> para_type;
+			cout << endl;
+
+			if (0 == para_type)
+			{
+				parallel_type = NO_PARALLEL;
+			}
+			else if (1 == para_type)
+			{
+				parallel_type = OMP_PARALLEL;
+			}
+			else if (2 == para_type)
+			{
+				parallel_type = MPI_PARALLEL;
+			}
+			else if (3 == para_type)
+			{
+				parallel_type = BOTH_PARALLEL;
+			}
+			else
+			{
+				cout << "Error: Invalid parallelisation type" << endl;
+			}
+			break;
+
+		case 1:
+			width = 1000;
+			height = 1000;
+			max_iter = 500;
+			parallel_type = MPI_PARALLEL;
+			break;
+
+		case 2:
+			width = 2000;
+			height = 2000;
+			max_iter = 600;
+			parallel_type = MPI_PARALLEL;
+			break;
+
+		case 3:
+			width = 3000;
+			height = 3000;
+			max_iter = 700;
+			parallel_type = MPI_PARALLEL;
+			break;
+
+		case 4:
+			width = 3840;
+			height = 2160;
+			max_iter = 800;
+			parallel_type = MPI_PARALLEL;
+			break;
+
+		default:
+			cout << "invalid test mode provided, reverting to case 1" << endl;
+			width = 1000;
+			height = 1000;
+			max_iter = 500;
+			parallel_type = MPI_PARALLEL;
+			break;
+		}
+#if defined(__unix__)
+		MPI_Bcast(&testmode,	//Buffer 
+			1,				//Amount of data to send
+			MPI_INT,					//data type
+			0,
+			MPI_COMM_WORLD);
+
+		MPI_Bcast(&width,	//Buffer 
+			1,				//Amount of data to send
+			MPI_INT,					//data type
+			0,
+			MPI_COMM_WORLD);
+
+		MPI_Bcast(&height,	//Buffer 
+			1,				//Amount of data to send
+			MPI_INT,					//data type
+			0,
+			MPI_COMM_WORLD);
+
+		MPI_Bcast(&max_iter,	//Buffer 
+			1,				//Amount of data to send
+			MPI_INT,					//data type
+			0,
+			MPI_COMM_WORLD);
+
+		MPI_Bcast(&parallel_type,	//Buffer 
+			1,				//Amount of data to send
+			MPI_INT,					//data type
+			0,
+			MPI_COMM_WORLD);
+#endif
+	} // END IF RANK = 0
+
+	cout << p_rank << ": leaving get_params()" << endl;
+
+	if ((width > 0) && (height > 0) && (max_iter > 0))
 		return true;
 	else
 		return false;
@@ -55,8 +159,12 @@ bool get_userdefined_params(int &width, int &height, int &max_iter, parallelisat
 
 int main(int argc, char **argv)
 {
-
-
+	int p_rank = 0;
+#if defined (__unix__)
+	MPI_Init(&argc, &argv);
+	MPI_Comm_rank(MPI_COMM_WORLD, &p_rank);
+#endif
+	
 	/**************************************
 		Initial Parameter declaration
 	***************************************/
@@ -68,63 +176,21 @@ int main(int argc, char **argv)
 	std::function<Complex(Complex, Complex)> first_order_mandel = [](Complex z, Complex c) -> Complex {return z * z + c; };
 	std::function<Complex(Complex, Complex)> third_order_mandel = [](Complex z, Complex c) -> Complex {return z * z * z + c; };
 
-	int width, height, max_iter;
+	int testmode, width, height, max_iter;
 	parallelisation_type parallel_type = NO_PARALLEL;
-	int testmode;
 
 	/**************************************
 				Test Mode Config
 	***************************************/
 
-	cout <<		"Use parallel test mode? 0 for no," <<
-		endl << "1 for 1k x 1k @ 500 iterations," << endl;
-	cout <<		"2 for 2k x 2k @ 600 iterations," <<
-		endl << "3 for 3k x 3k @ 700 iterations," << endl;
-	cout <<		"4 for 4k resolution image @ 800 iterations," <<
-		endl << "8 for 8k resolution image @ 800 iterations" << endl;
-	cin >> testmode;
-	switch (testmode)
-	{
-	case 0:
-		if (!get_userdefined_params(width, height, max_iter, parallel_type))
-		{
-			cout << "User defined paramaters are not valid, exiting" << endl;
-			return 0;
-		}
-		break;
+	//This retrieves the parameters for the test & shares between all processes
 
-	case 1:
-		width = 1000;
-		height = 1000;
-		max_iter = 500;
-		break;
-
-	case 2:
-		width = 2000;
-		height = 2000;
-		max_iter = 600;
-		break;
-
-	case 3:
-		width = 3000;
-		height = 3000;
-		max_iter = 700;
-		break;
-
-	case 4:
-		width = 3840;
-		height = 2160;
-		max_iter = 800;
-		break;
-
-	default:
-		cout << "invalid test mode provided, reverting to case 1" << endl;
-		width = 1000;
-		height = 1000;
-		max_iter = 500;
-		break;
-	}
-
+		//get_userdefined_params(testmode, width, height, max_iter, parallel_type);
+	testmode = 1;
+	width = 1920;
+	height = 1080;
+	max_iter = 500;
+	parallel_type = OMP_PARALLEL;
 
 	/**************************************
 					Core
@@ -141,10 +207,6 @@ int main(int argc, char **argv)
 	//Create the mandel_logger - Don't care about alternate logfile for now
 	mandel_logger logger(Log_level::DEFAULT);
 
-#if defined (__unix__)
-	MPI_Init(&argc, &argv);
-#endif
-
 	//Now create the plotter using the parameters specified above
 	mandel_plotter plotter(screen, fractal, max_iter, first_order_mandel, &logger);
 
@@ -158,52 +220,53 @@ int main(int argc, char **argv)
 	//to the underlying way in which it computes these fractals.
 	plotter.fractal(colours, parallel_type);
 
-#if defined (__unix__)
-	MPI_Finalize();
-#endif
-
-	string new_image_filepath, new_image_filename;
-	if (0 == testmode)
+	if (0 == p_rank)
 	{
-		cout << "Fractal computation complete, please enter absolute path of image including name or enter 'default' to use the default values: ";
-		cin >> new_image_filepath;
-		if ("default" == new_image_filepath)
+		string new_image_filepath, new_image_filename;
+		if (0 == testmode)
 		{
-			cout << "Using default path" << endl;
-			new_image_filename = default_image_filename;
-			new_image_filepath = default_image_filepath;
+			cout << "Fractal computation complete, please enter absolute path of image including name or enter 'default' to use the default values: ";
+			cin >> new_image_filepath;
+			if ("default" == new_image_filepath)
+			{
+				cout << "Using default path" << endl;
+				new_image_filename = default_image_filename;
+				new_image_filepath = default_image_filepath;
+			}
+			else
+			{
+				//Get the filename out of the path
+				size_t found;
+#if defined(__unix__)
+				found = new_image_filepath.find_last_of("/");
+#elif defined(_WIN32) || defined(WIN32)
+				found = new_image_filepath.find_last_of("\\");
+#endif
+				if (0 < found)
+				{
+					new_image_filename = new_image_filepath.substr(found + 1);
+					new_image_filepath = new_image_filepath.substr(0, found);
+				}
+				cout << "Writing image to: " << new_image_filepath << endl;
+			}
 		}
 		else
 		{
-			//Get the filename out of the path
-			size_t found;
-#if defined(__unix__)
-			found = new_image_filepath.find_last_of("/");
-#elif defined(_WIN32) || defined(WIN32)
-			found = new_image_filepath.find_last_of("\\");
-#endif
-			if (0 < found)
-			{
-				new_image_filename = new_image_filepath.substr(found + 1);
-				new_image_filepath = new_image_filepath.substr(0, found);
-			}
-			cout << "Writing image to: " << new_image_filepath << endl;
+			cout << "Writing to default path" << endl;
+			new_image_filename = default_image_filename;
+			new_image_filepath = default_image_filepath;
 		}
-	}
-	else
-	{
-		cout << "Writing to default path" << endl;
-		new_image_filename = default_image_filename;
-		new_image_filepath = default_image_filepath;
-	}
-	//Finally create the image handler which will convert the iterations in the Colours
-	//Vector to RGB and write the image to the filepath provided.
-	image_handler img_hand((new_image_filepath + new_image_filename),
-							max_iter,
-							screen.width(),
-							screen.height());
+		//Finally create the image handler which will convert the iterations in the Colours
+		//Vector to RGB and write the image to the filepath provided.
+		image_handler img_hand((new_image_filepath + new_image_filename),
+			max_iter,
+			screen.width(),
+			screen.height());
 
-	img_hand.write_image(screen, colours);
-
+		img_hand.write_image(screen, colours);
+	}
+#if defined (__unix__)
+	MPI_Finalize();
+#endif
 	return 0;
-}
+	}

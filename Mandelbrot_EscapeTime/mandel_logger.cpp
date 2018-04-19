@@ -29,7 +29,9 @@ string plat_newline("\\r\\n");
 
 //Don't need to check the log level as it is enumerated and must be on of the specified values
 mandel_logger::mandel_logger(Log_level log_lvl, string altlog_filename)
-	: m_log_level(log_lvl), m_permalog_filename(perma_log_filepath), m_using_altlog(false)
+	:	m_log_level(log_lvl), 
+		m_permalog_filename(perma_log_filepath),
+		m_using_altlog(false)
 {
 	if (!altlog_filename.empty())
 	{
@@ -47,16 +49,22 @@ mandel_logger::mandel_logger(Log_level log_lvl, string altlog_filename)
 	//Automatically get the sysinfo string as the first thing we do in the logger
 	//Will be the first part of all the sysinfo entries
 	string sysinfo = get_sysinfo_string();
-	m_logfile_details.push_back(sysinfo);
+	//m_logfile_details.push_back(sysinfo);
+	//m_details_outstanding = true;
 }
 
 mandel_logger::~mandel_logger()
 {
+	if (m_details_outstanding)
+	{
+		write_logdetails_to_path();
+	}
 }
 
 void mandel_logger::add_logfile_detail(string log_detail)
 {
 		m_logfile_details.push_back(log_detail);
+		m_details_outstanding = true;
 }
 
 //Write the m_logfile_details to the provided path, if path is not provided 
@@ -119,14 +127,14 @@ bool mandel_logger::write_logdetails_to_path(string logpath)
 		{
 			cout << "Writing details to permalog only" << endl;
 			//Divider includes newlines on either side to ensure entries are divided 
-			logfile << logfile_entry_divider;
+			//logfile << logfile_entry_divider;
 
 			for (int i = 0; i < m_logfile_details.size(); i++)
 			{
-				logfile << m_logfile_details[i] << ", ";
+				logfile << m_logfile_details[i] << endl;
 			}
-			logfile << plat_newline;
 			success = true;
+			m_details_outstanding = false;
 		}
 		else
 		{

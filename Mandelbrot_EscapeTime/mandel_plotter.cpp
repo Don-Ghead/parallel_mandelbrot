@@ -33,6 +33,16 @@ mandel_plotter::mandel_plotter(	window<int> screen,
 		m_mandel_func(mandel_func),
 		m_logger(logger)
 {
+	int rank = -1;
+	int mpi_size = 0;
+
+#if defined(__unix__)	
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+#endif
+	m_mpi_rank = rank;
+	m_mpi_size = mpi_size;
+
 	m_screen_width = screen.width();
 	m_screen_height = screen.height();
 	m_screen_y_min = screen.get_y_min();
@@ -121,15 +131,15 @@ void mandel_plotter::get_number_iterations(std::vector<int> &colours, parallelis
 		//Unfortunately OpenMP version on Visual studio doesn't support the collapse clause 
 		//So check at uni but using workaround for now
 
-//#pragma omp parallel private(colour_index)
-#pragma omp parallel for private(colour_index) collapse(2)
+		omp_set_num_threads(16);
+#pragma omp parallel for private(colour_index) schedule(dynamic, 1)
 		for (int y = m_screen_y_min; y < m_screen_y_max; ++y) 
 		{
-//#pragma omp parallel for schedule(dynamic, 1)
-			for (int x = m_screen_x_min; x < m_screen_x_max; ++x) 
+			//cout << "Number of threads = " << omp_get_num_threads() << endl;
+			for (int x = m_screen_x_min; x < m_screen_x_max; ++x)
 			{
 				//for Row-major ordering the offset is calculated as (row * NumColumns )+ column
-				colour_index = y * m_screen_x_max + x;
+				colour_index = y * m_screen_width + x;
 				//Complex c((double)x, (double)y); //Assign two coordinate positions to complex
 				Complex c = pixel_to_complex(x, y); //convert to complex domain
 
@@ -150,11 +160,108 @@ void mandel_plotter::get_number_iterations(std::vector<int> &colours, parallelis
 		//Divide size of colours vector by number of MPI instances to get 
 		//Boundaries for each instance of MPI program to work on 
 		int mpincrement = 0;
+		int index = 0;
+
+		mpincrement = colours.size() / m_mpi_size;
+		int *mpi_colours = new int[mpincrement];
+
+		//Output the buffer boundaries during testing (this could also go to logger)
+		cout << "Size of entire buffer: " << m_screen_height * m_screen_width << endl;
+		cout << "Increment size of buffer: " << mpincrement << endl;
+
+		//define the boundary based on the MPI instance rank
+		//bounds low = x * S/N
+		//bounds high = ((x+1) * S/N) - 1 
+		size_t buf_bounds_low = m_mpi_rank * mpincrement;
+		size_t buf_bounds_high = ((m_mpi_rank + 1) * mpincrement) - 1;
+
+		cout << "Rank: " << m_mpi_rank << " Using MPI only Mandelbrot" << endl;
+		cout << "Lower boundary: " << buf_bounds_low << " , Upper boundary: " << buf_bounds_high << endl;
+
+		for (int i = buf_bounds_low; i < buf_bounds_high; ++i)
+		{
+			int x = i % m_screen_x_max;
+			int y = (i - x) / m_screen_x_max;
+
+			Complex c = pixel_to_complex(x, y); //convert to complex domain
+
+												//returns the number of iterations of our complex C
+												//and assigns it to the appropriate colours index
+			mpi_colours[index] = check_value_within_set(c);
+			index++;
+		}
+
+		//Now Either Send or receive data to combine into master data container
+		if (0 != m_mpi_rank) //If not master send data to master
+		{
+#if defined(__unix__)
+
+			MPI_Send(&mpi_colours[0],	//Buffer 
+				mpincrement,				//Amount of data to send
+				MPI_INT,			 		//data type
+				0,							//Destination (master)
+				0,							//Tag (don't need one)
+				MPI_COMM_WORLD);
+			
+			cout << "Send call from rank " << m_mpi_rank << endl;
+#endif
+		}
+		else //Master, receive data and allocate to colours vector
+		{
+#if defined(__unix__)
+			index = 0;
+			for (int b = buf_bounds_low; b < buf_bounds_high; b++)
+			{
+				colours[b] = mpi_colours[index];
+				index++;
+			}
+
+			for (int t = 1; t < m_mpi_size; t++)
+			{ 
+				MPI_Status status;
+				size_t rcv_rank;
+
+				MPI_Recv(&mpi_colours[0],		//buffer
+					mpincrement,				//Amount of data to recv
+					MPI_INT,					//Data type
+					MPI_ANY_SOURCE,				//source
+					0,							//Tag
+					MPI_COMM_WORLD,				//Comm
+					&status);					//status
+
+				rcv_rank = status.MPI_SOURCE;
+				cout << "Master Receive call from rank " << rcv_rank << endl;
+
+				//Get boundaries for sender 
+				size_t rcvbuf_bounds_low = rcv_rank * mpincrement;
+				size_t rcvbuf_bounds_high = ((rcv_rank + 1) * mpincrement) - 1;
+
+				int index = 0;
+				//Now copy this to the main colours vector
+				for (int b = rcvbuf_bounds_low; b < rcvbuf_bounds_high; b++)
+				{
+					colours[b] = mpi_colours[index];
+					index++;
+				}
+			}
+#endif
+		}
+		
+	}
+	else if (BOTH_PARALLEL == parallel_type)
+	{
+		//Divide size of colours vector by number of MPI instances to get 
+		//Boundaries for each instance of MPI program to work on 
+		int mpincrement = 0;
 		int mpi_comm_size = 0;
+		int index = 0;
+
 #if defined(__unix__)
 		MPI_Comm_size(MPI_COMM_WORLD, &mpi_comm_size);
 #endif
+
 		mpincrement = colours.size() / mpi_comm_size;
+		int *mpi_colours = new int[mpincrement];
 
 		//Output the buffer boundaries during testing (this could also go to logger)
 		cout << "Size of entire buffer: " << m_screen_height * m_screen_width << endl;
@@ -163,81 +270,80 @@ void mandel_plotter::get_number_iterations(std::vector<int> &colours, parallelis
 		//define the boundary based on the MPI instance rank
 		//bounds low = x * S/N
 		//bounds high = ((x+1) * S/N) - 1
-		size_t rank;
-#if defined(__unix__)
-		MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-#endif
-		size_t buf_bounds_low = rank * mpincrement;
-		size_t buf_bounds_high = ((rank + 1) * mpincrement) - 1;
+		size_t buf_bounds_low = m_mpi_rank * mpincrement;
+		size_t buf_bounds_high = ((m_mpi_rank + 1) * mpincrement) - 1;
 
-		cout << "Using MPI only Mandelbrot" << endl;
+		cout << "Rank: " << m_mpi_rank << " Using MPI only Mandelbrot" << endl;
+		cout << "Lower boundary: " << buf_bounds_low << " , Upper boundary: " << buf_bounds_high << endl;
+
+#pragma omp parallel for private(index)
 		for (int i = buf_bounds_low; i < buf_bounds_high; ++i)
 		{
 			int x = i % m_screen_x_max;
 			int y = (i - x) / m_screen_x_max;
+
 			Complex c = pixel_to_complex(x, y); //convert to complex domain
 
-												//returns the number of iterations of our complex C 
+												//returns the number of iterations of our complex C
 												//and assigns it to the appropriate colours index
-			colours[i] = check_value_within_set(c);
+			mpi_colours[index] = check_value_within_set(c);
+			index++;
 		}
 
 		//Now Either Send or receive data to combine into master data container
-		if (0 != rank) //If not master send data to master
+		if (0 != m_mpi_rank) //If not master send data to master
 		{
 #if defined(__unix__)
-			MPI_Send(colours[buf_bounds_low],	//Buffer 
+			MPI_Send(&mpi_colours[0],	//Buffer 
 				mpincrement,				//Amount of data to send
-				MPI_INT,					//data type
+				MPI_INT,			 		//data type
 				0,							//Destination (master)
-				MPI_ANY_TAG,				//Tag (don't need one)
-				MPI_COMM_WORLD
-				);
-			
-			cout << "Send call from rank " << rank << endl;
+				0,							//Tag (don't need one)
+				MPI_COMM_WORLD);
+
+			cout << "Send call from rank " << m_mpi_rank << endl;
 #endif
 		}
 		else //Master, receive data and allocate to colours vector
 		{
 #if defined(__unix__)
+			index = 0;
+			for (int b = buf_bounds_low; b < buf_bounds_high; b++)
+			{
+				colours[b] = mpi_colours[index];
+				index++;
+			}
 
-			for (int t = 0; t < mpi_comm_size; t++)
-			{ 
-				vector<int> temp_colours;
+			for (int t = 1; t < mpi_comm_size; t++)
+			{
 				MPI_Status status;
 				size_t rcv_rank;
 
-				temp_colours.resize(mpincrement);
-				MPI_Recv(temp_colours.data(),
-					mpincrement,
-					MPI_INT,
-					MPI_ANY_SOURCE,
-					MPI_ANY_TAG,
-					MPI_COMM_WORLD,
-					&status
-					);
+				MPI_Recv(&mpi_colours[0],		//buffer
+					mpincrement,				//Amount of data to recv
+					MPI_INT,					//Data type
+					MPI_ANY_SOURCE,				//source
+					0,							//Tag
+					MPI_COMM_WORLD,				//Comm
+					&status);					//status
 
 				rcv_rank = status.MPI_SOURCE;
 				cout << "Master Receive call from rank " << rcv_rank << endl;
 
+				//Get boundaries for sender 
 				size_t rcvbuf_bounds_low = rcv_rank * mpincrement;
 				size_t rcvbuf_bounds_high = ((rcv_rank + 1) * mpincrement) - 1;
 
+				int index = 0;
+				//Now copy this to the main colours vector
 				for (int b = rcvbuf_bounds_low; b < rcvbuf_bounds_high; b++)
 				{
-					int index = 0;
-					colours[b] = temp_colours[index];
+					colours[b] = mpi_colours[index];
 					index++;
 				}
 			}
-			
 #endif
 		}
-		
-	}
-	else if (BOTH_PARALLEL == parallel_type)
-	{
-
 	}
 }
 
@@ -246,11 +352,11 @@ void mandel_plotter::fractal(std::vector<int> &colours, parallelisation_type par
 {
 	//May re-enable the progress bar for larger fractal computations
 	cout << "Computing Mandelbrot Fractals please wait..." << endl;
-	auto start = std::chrono::steady_clock::now();
+	double start = omp_get_wtime();
 	get_number_iterations(colours, parallel_type);
-	auto end = std::chrono::steady_clock::now();
+	double end = omp_get_wtime();
 
-	//Now we add some basic details to the logfile 
+	/*Now we add some basic details to the logfile 
 	switch(parallel_type)
 	{
 	case NO_PARALLEL:
@@ -268,14 +374,51 @@ void mandel_plotter::fractal(std::vector<int> &colours, parallelisation_type par
 	case BOTH_PARALLEL:
 		m_logger->add_logfile_detail("Parallelized OpenMP & MPI");
 		break;
-	}
+	} 
 
 	m_logger->add_logfile_detail("Image Dimensions: [" + to_string(m_screen_width) + "," + to_string(m_screen_height) + ']');
+	*/
+	double temp_duration;
+	double total_duration;
+#if defined(__unix__)
+	MPI_Status status;
 
-	//TODO - This may not work check logfile to double check
-	double temp_duration = std::chrono::duration <double, std::milli>(end - start).count();
-	m_logger->add_logfile_detail("Time to generate fractals: " + to_string( temp_duration ) + " [ms]");
-	std::cout << "Time to generate fractals: " << std::chrono::duration <double, std::milli>(end - start).count() << " [ms]" << std::endl;
+		if (0 != m_mpi_rank) //Send temp values to master
+		{
+			temp_duration = std::chrono::duration <double, std::milli>(end - start).count();
+			
+			MPI_Send(&temp_duration,		//Buffer 
+				1,				//Amount of data to send
+				MPI_DOUBLE,			 		//data type
+				0,							//Destination (master)
+				1,							//Tag (don't need one)
+				MPI_COMM_WORLD);			
+		}
+		else
+		{
+			temp_duration = std::chrono::duration <double, std::milli>(end - start).count();
+			total_duration += temp_duration;
+
+			for (int t = 1; t < m_mpi_size; t++)
+			{
+				MPI_Recv(&temp_duration,		//buffer
+					1,				//Amount of data to recv
+					MPI_DOUBLE,					//Data type
+					MPI_ANY_SOURCE,				//source
+					1,							//Tag
+					MPI_COMM_WORLD,				//Comm
+					&status);					//status
+
+				total_duration += temp_duration;
+			}
+
+			m_logger->add_logfile_detail(to_string(total_duration) + ' ');
+			m_logger->write_logdetails_to_path();
+			std::cout << "Total time to generate fractals: " << total_duration << " [s]" << std::endl;
+		}
+	
+#endif
+		
 }
 
 
